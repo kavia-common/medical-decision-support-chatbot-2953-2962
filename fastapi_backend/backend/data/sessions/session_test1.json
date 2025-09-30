@@ -1,0 +1,12 @@
+{
+  "session_id": "test1",
+  "timestamp": 1759224502,
+  "notes": {
+    "chief_complaint": "Test message from curl",
+    "symptoms": [],
+    "duration": null,
+    "medications": [],
+    "allergies": [],
+    "additional_context": "Test message from curl"
+  }
+}
