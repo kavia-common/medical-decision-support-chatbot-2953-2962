@@ -2,19 +2,34 @@ import React, { useState, useEffect, useMemo } from 'react';
 import './App.css';
 
 /**
- * Resolve backend base URL from environment or default to same-origin or localhost:8000.
- * This avoids hardcoding and allows configuring SITE_URL via deployment.
+ * Resolve backend base URL from environment or default appropriately.
+ * Priority:
+ * 1) window.env.API_BASE (runtime injected)
+ * 2) process.env.REACT_APP_API_BASE (build-time)
+ * 3) If on dev server (port 3000) and no base set -> http://localhost:8000
+ * 4) Otherwise same-origin relative path (assumes reverse proxy)
+ * 5) Final fallback: http://localhost:8000
  */
 // PUBLIC_INTERFACE
 function useApiBase() {
   const base = useMemo(() => {
     const w = typeof window !== 'undefined' ? window : {};
     const injected = (w.env && w.env.API_BASE) || process.env.REACT_APP_API_BASE;
-    if (injected) return injected.replace(/\/+$/, '');
-    // If running in a browser with location, prefer same-origin relative path
-    if (typeof window !== 'undefined' && window.location && window.location.origin) {
-      return ''; // use relative paths -> same-origin proxy if available
+    if (injected) return String(injected).replace(/\/+$/, '');
+
+    // If in browser, check current origin/port
+    if (typeof window !== 'undefined' && window.location) {
+      const { origin, port } = window.location;
+      // Common dev case: React runs on :3000 while FastAPI on :8000
+      if (port === '3000') {
+        return 'http://localhost:8000';
+      }
+      // In preview/proxy deployments, prefer same-origin relative path
+      if (origin) {
+        return ''; // use relative URLs (same-origin/proxy)
+      }
     }
+
     // Fallback to localhost during local dev
     return 'http://localhost:8000';
   }, []);
@@ -46,7 +61,8 @@ function App() {
   function formatNetworkError(e, endpoint) {
     // Improve error message for fetch network/CORS failures
     if (e && e.name === 'TypeError' && /fetch/i.test(String(e))) {
-      return `Network error calling ${endpoint}. This can be caused by CORS or an unreachable API base (${apiBase || 'same-origin'}). Check that the backend is running and API base URL is correct.`;
+      return `Network error calling ${endpoint}. Possible causes: CORS, wrong API base (${apiBase || 'same-origin'}), or backend not running.
+Tip: If you see "Cannot POST ${endpoint}", the request likely hit the React dev server. Ensure API_BASE points to FastAPI (e.g., http://localhost:8000).`;
     }
     return e?.message || `Request failed for ${endpoint}`;
   }
