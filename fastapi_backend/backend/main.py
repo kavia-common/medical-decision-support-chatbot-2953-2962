@@ -31,13 +31,28 @@ app = FastAPI(
 
 # CORS
 settings = get_settings()
-origins = settings.CORS_ALLOWED_ORIGINS
+
+# Start from env-provided origins if any
+origins = list(settings.CORS_ALLOWED_ORIGINS or [])
+
+# Always allow the Kavia preview frontend origin unless already present
+kavia_frontend_origin = "https://vscode-internal-36118-beta.beta01.cloud.kavia.ai:4000"
+if kavia_frontend_origin not in origins:
+    origins.append(kavia_frontend_origin)
+
+# If no origins are specified, default to the explicit Kavia origin only (avoid "*"
+# when credentials are allowed to satisfy browser CORS requirements)
+if not origins:
+    origins = [kavia_frontend_origin]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins if origins else ["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
+    allow_origins=origins,
+    allow_credentials=True,  # enable cookies/authorization headers if needed
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["*"],
+    expose_headers=["*"],
+    max_age=86400,
 )
 
 # Routers
