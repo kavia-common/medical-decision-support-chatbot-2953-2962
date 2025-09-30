@@ -1,0 +1,4 @@
+{
+    "command": "npm run test",
+    "working_directory": "/home/kavia/workspace/code-generation/medical-decision-support-chatbot-2953-2962/fastapi_backend"
+}
