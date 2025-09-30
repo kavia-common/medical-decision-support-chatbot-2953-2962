@@ -24,7 +24,10 @@ def get_openapi_tags():
 
 app = FastAPI(
     title="Medical Decision Support Backend",
-    description="FastAPI backend providing PatientAgent chat, ClinicalAgent recommendations, OneDrive/local storage, and RAG over uploaded guidelines. For informational purposes only.",
+    description=(
+        "FastAPI backend providing PatientAgent chat (/chat), ClinicalAgent recommendations, OneDrive/local storage, "
+        "and RAG over uploaded guidelines. For informational purposes only."
+    ),
     version="1.0.0",
     openapi_tags=get_openapi_tags()
 )

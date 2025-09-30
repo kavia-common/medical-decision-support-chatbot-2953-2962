@@ -15,14 +15,34 @@ storage = StorageService()
     "/chat",
     response_model=ChatResponse,
     summary="Send a message in a chat session",
-    description="Processes a patient message, updates structured notes, and stores session notes to OneDrive (with local fallback)."
+    description=(
+        "Processes a patient message, updates structured notes, and stores session notes to OneDrive (with local fallback). "
+        "Use this endpoint by POSTing JSON: { 'session_id': 'abc123', 'message': { 'role': 'patient', 'content': 'text' } }."
+    ),
+    operation_id="post_chat_message"
 )
 async def chat(req: ChatRequest):
     """
     FastAPI entrypoint for chat.
-    - session_id: string to group messages
-    - message: role + content
-    Returns PatientAgent reply and current notes; stores notes.
+
+    Request body:
+    - session_id (str): unique identifier grouping the user session
+    - message (object):
+        - role (str): sender role, e.g., 'patient'
+        - content (str): message text from the patient
+
+    Returns:
+    - ChatResponse: {
+        "session_id": str,
+        "reply": str,       # assistant reply message
+        "notes": dict       # structured notes extracted from the message
+      }
+      The response also includes standardized "disclaimer" and "safety_warnings" fields.
+
+    Notes:
+    - This route is asynchronous and persists structured notes using the configured storage provider.
+    - Ensure clients call the FastAPI server base URL (e.g., http://localhost:8000/chat). If you see "Cannot POST /chat",
+      it likely means the request went to a frontend dev server or preview proxy instead of FastAPI.
     """
     if not req.session_id or not req.message or not req.message.content:
         raise HTTPException(status_code=400, detail="session_id and message are required")
