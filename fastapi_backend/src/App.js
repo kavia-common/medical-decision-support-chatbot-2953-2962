@@ -17,23 +17,44 @@ function useApiBase() {
     const injected = (w.env && w.env.API_BASE) || process.env.REACT_APP_API_BASE;
     if (injected) return String(injected).replace(/\/+$/, '');
 
-    // If in browser, check current origin/port
     if (typeof window !== 'undefined' && window.location) {
       const { origin, port } = window.location;
-      // Common dev case: React runs on :3000 while FastAPI on :8000
       if (port === '3000') {
+        // React dev server -> default to local FastAPI
         return 'http://localhost:8000';
       }
-      // In preview/proxy deployments, prefer same-origin relative path
+      // For preview/proxy environments, use same-origin (relative)
       if (origin) {
-        return ''; // use relative URLs (same-origin/proxy)
+        return '';
       }
     }
-
-    // Fallback to localhost during local dev
     return 'http://localhost:8000';
   }, []);
   return base;
+}
+
+/**
+ * Safely join a base URL (absolute or relative) with a path.
+ * - If base is absolute (http/https), use the URL constructor.
+ * - If base is empty (same-origin), ensure path starts with a single slash.
+ */
+function joinUrl(base, path) {
+  const cleanPath = String(path || '').replace(/^\/*/, '/'); // ensure single leading slash
+  if (!base) {
+    // same-origin relative
+    return cleanPath;
+  }
+  try {
+    // Absolute URL base
+    const u = new URL(base);
+    // Ensure we don't duplicate slashes
+    u.pathname = `${u.pathname.replace(/\/+$/, '')}${cleanPath}`;
+    return u.toString();
+  } catch {
+    // Non-standard base, fallback to simple normalization
+    const left = String(base).replace(/\/+$/, '');
+    return `${left}${cleanPath}`;
+  }
 }
 
 // PUBLIC_INTERFACE
@@ -73,7 +94,7 @@ Tip: If you see "Cannot POST ${endpoint}", the request likely hit the React dev 
     if (!content) return;
     setLoading(true);
     try {
-      const url = `${apiBase}/chat`.replace(/\/\//g, '/').replace(/^http(s)?:\//, 'http$1://');
+      const url = joinUrl(apiBase, '/chat');
       const resp = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -106,7 +127,7 @@ Tip: If you see "Cannot POST ${endpoint}", the request likely hit the React dev 
     setError('');
     setRecLoading(true);
     try {
-      const url = `${apiBase}/recommend`.replace(/\/\//g, '/').replace(/^http(s)?:\//, 'http$1://');
+      const url = joinUrl(apiBase, '/recommend');
       const resp = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -129,7 +150,7 @@ Tip: If you see "Cannot POST ${endpoint}", the request likely hit the React dev 
     setError('');
     setHealth('Checking...');
     try {
-      const url = `${apiBase}/`.replace(/\/\//g, '/').replace(/^http(s)?:\//, 'http$1://');
+      const url = joinUrl(apiBase, '/');
       const resp = await fetch(url, { method: 'GET' });
       if (!resp.ok) {
         const txt = await resp.text();

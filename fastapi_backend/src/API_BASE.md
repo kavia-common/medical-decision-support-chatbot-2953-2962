@@ -9,6 +9,10 @@ Preferred options (in order):
 4. Same-origin relative path (when not on port 3000). This assumes a reverse proxy is routing API requests to the backend.
 5. Fallback to http://localhost:8000 for local development.
 
+URL building:
+- The app uses a robust joinUrl helper to combine the base and path (e.g., /chat). It supports absolute bases like http://localhost:8000 and same-origin relative base ("").
+- This avoids malformed URLs and ensures requests hit FastAPI instead of the React dev server.
+
 Examples:
 - Local dev (separate ports):
   REACT_APP_API_BASE=http://localhost:8000 npm start
@@ -18,8 +22,8 @@ Examples:
   Leave REACT_APP_API_BASE unset; the app will use relative URLs when not on port 3000.
 
 Troubleshooting "Failed to fetch" or 404 "Cannot POST /chat":
-- If you see "Cannot POST /chat", you are likely posting to the React dev server (port 3000) instead of FastAPI.
-  Fix by setting REACT_APP_API_BASE=http://localhost:8000 or relying on the new automatic default on port 3000.
-- Ensure the backend is running and reachable at the configured base.
-- Check the browser console for CORS errors.
+- "Cannot POST /chat" usually means the request was sent to the React dev/preview server instead of FastAPI. Ensure API_BASE points to FastAPI (e.g., http://localhost:8000) or a valid reverse proxy.
+- Confirm backend is running: uvicorn main:app --reload (in fastapi_backend/backend).
+- Check the header in the app: it shows the resolved API base. It should be http://localhost:8000 for local dev.
+- Check for CORS errors in the browser console.
 - Verify that proxies or preview environments allow reaching the backend host/port.
