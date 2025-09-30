@@ -2,17 +2,21 @@ import React, { useState, useEffect, useMemo } from 'react';
 import './App.css';
 
 /**
- * Resolve backend base URL from environment or default to localhost:8000.
+ * Resolve backend base URL from environment or default to same-origin or localhost:8000.
  * This avoids hardcoding and allows configuring SITE_URL via deployment.
  */
+// PUBLIC_INTERFACE
 function useApiBase() {
   const base = useMemo(() => {
-    // PUBLIC_INTERFACE
-    // Prefer window.env.API_BASE if injected at runtime, fallback to same-origin or localhost:8000
     const w = typeof window !== 'undefined' ? window : {};
-    // If this app is hosted under a preview proxy on port 3000, backend is likely 8000
-    const defaultBase = 'http://localhost:8000';
-    return (w.env && w.env.API_BASE) || process.env.REACT_APP_API_BASE || defaultBase;
+    const injected = (w.env && w.env.API_BASE) || process.env.REACT_APP_API_BASE;
+    if (injected) return injected.replace(/\/+$/, '');
+    // If running in a browser with location, prefer same-origin relative path
+    if (typeof window !== 'undefined' && window.location && window.location.origin) {
+      return ''; // use relative paths -> same-origin proxy if available
+    }
+    // Fallback to localhost during local dev
+    return 'http://localhost:8000';
   }, []);
   return base;
 }
@@ -28,6 +32,7 @@ function App() {
   const [recLoading, setRecLoading] = useState(false);
   const [recs, setRecs] = useState([]);
   const [error, setError] = useState('');
+  const [health, setHealth] = useState(null);
   const apiBase = useApiBase();
 
   // Apply theme to document element
@@ -38,13 +43,22 @@ function App() {
   // PUBLIC_INTERFACE
   const toggleTheme = () => setTheme(prev => (prev === 'light' ? 'dark' : 'light'));
 
+  function formatNetworkError(e, endpoint) {
+    // Improve error message for fetch network/CORS failures
+    if (e && e.name === 'TypeError' && /fetch/i.test(String(e))) {
+      return `Network error calling ${endpoint}. This can be caused by CORS or an unreachable API base (${apiBase || 'same-origin'}). Check that the backend is running and API base URL is correct.`;
+    }
+    return e?.message || `Request failed for ${endpoint}`;
+  }
+
   async function callChat() {
     setError('');
     const content = input.trim();
     if (!content) return;
     setLoading(true);
     try {
-      const resp = await fetch(`${apiBase}/chat`, {
+      const url = `${apiBase}/chat`.replace(/\/\//g, '/').replace(/^http(s)?:\//, 'http$1://');
+      const resp = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -66,7 +80,7 @@ function App() {
       setNotes(data.notes || null);
       setInput('');
     } catch (e) {
-      setError(e.message || 'Failed to send message');
+      setError(formatNetworkError(e, '/chat'));
     } finally {
       setLoading(false);
     }
@@ -76,7 +90,8 @@ function App() {
     setError('');
     setRecLoading(true);
     try {
-      const resp = await fetch(`${apiBase}/recommend`, {
+      const url = `${apiBase}/recommend`.replace(/\/\//g, '/').replace(/^http(s)?:\//, 'http$1://');
+      const resp = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ session_id: sessionId })
@@ -88,9 +103,27 @@ function App() {
       const data = await resp.json();
       setRecs(data.recommendations || []);
     } catch (e) {
-      setError(e.message || 'Failed to get recommendations');
+      setError(formatNetworkError(e, '/recommend'));
     } finally {
       setRecLoading(false);
+    }
+  }
+
+  async function checkHealth() {
+    setError('');
+    setHealth('Checking...');
+    try {
+      const url = `${apiBase}/`.replace(/\/\//g, '/').replace(/^http(s)?:\//, 'http$1://');
+      const resp = await fetch(url, { method: 'GET' });
+      if (!resp.ok) {
+        const txt = await resp.text();
+        setHealth(`Health check error ${resp.status}: ${txt}`);
+        return;
+      }
+      const data = await resp.json();
+      setHealth(`OK: ${data?.status || 'ok'} (${data?.service || 'api'})`);
+    } catch (e) {
+      setHealth(formatNetworkError(e, '/'));
     }
   }
 
@@ -114,6 +147,16 @@ function App() {
 
         <h1 style={{ marginTop: 16, color: 'var(--text-primary)' }}>Medical Decision Support Chat</h1>
         <p style={{ margin: 0, opacity: 0.8 }}>Session: <code>{sessionId}</code></p>
+        <div style={{ marginTop: 8, fontSize: 12, opacity: 0.8 }}>
+          API base: <code>{apiBase || '(same-origin)'}</code>
+          <button
+            onClick={checkHealth}
+            style={{ marginLeft: 8, background: '#e5e7eb', border: '1px solid #d1d5db', padding: '2px 6px', borderRadius: 6, cursor: 'pointer' }}
+          >
+            Check API
+          </button>
+          {health ? <span style={{ marginLeft: 8 }}>{health}</span> : null}
+        </div>
       </header>
 
       <main style={{ maxWidth: 900, margin: '0 auto', padding: 16 }}>
